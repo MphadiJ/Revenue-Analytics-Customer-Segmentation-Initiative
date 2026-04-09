@@ -55,3 +55,13 @@ Count plots for categorical feature analysis
 Python | Pandas | NumPy | Scikit-Learn | Plotly | Streamlit | seaborn | matplotlib
 Git & GitHub for version control
 
+How to run the code
+# Clone the repo
+git clone <repo_url>
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Launch the Streamlit dashboard
+streamlit run app.py
+
