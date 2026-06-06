@@ -9,9 +9,9 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..
 SRC_PATH = os.path.join(PROJECT_ROOT, "src")
 sys.path.insert(0, SRC_PATH)
 
-# Import WITHOUT src. prefix
 from features.build_features import FeatureEngineer
 from Transformer.Preprocessing import DataPreprocessor
+
 
 class InferencePipeline:
     def __init__(self, preprocessor_path, model_path):
@@ -32,31 +32,33 @@ class InferencePipeline:
         return pd.DataFrame(scaled, columns=self.expected_features, index=df.index)
 
     def _name_segments(self, df_with_clusters):
-        cluster_summary = df_with_clusters.groupby('Segment').mean()
-        cluster_summary['R_rank'] = cluster_summary['Recency'].rank(ascending=False)
-        cluster_summary['F_rank'] = cluster_summary['Frequency'].rank(ascending=True)
-        cluster_summary['M_rank'] = cluster_summary['Monetary'].rank(ascending=True)
+        cluster_summary = df_with_clusters.groupby('Segment').mean(numeric_only=True)
+
+        # Rank clusters by Monetary value descending
+        sorted_clusters = cluster_summary['Monetary'].sort_values(ascending=False).index.tolist()
+
+        labels = ['High Value', 'Frequent Buyer', 'Regular', 'At Risk']
         segment_map = {}
-        for cluster in cluster_summary.index:
-            r = cluster_summary.loc[cluster, 'R_rank']
-            f = cluster_summary.loc[cluster, 'F_rank']
-            m = cluster_summary.loc[cluster, 'M_rank']
-            if f >= cluster_summary['F_rank'].quantile(0.75) and \
-               m >= cluster_summary['M_rank'].quantile(0.75) and \
-               r <= cluster_summary['R_rank'].quantile(0.25):
-                segment_map[cluster] = "High Value"
-            elif f >= cluster_summary['F_rank'].quantile(0.75):
-                segment_map[cluster] = "Frequent Buyer"
-            elif r >= cluster_summary['R_rank'].quantile(0.75):
-                segment_map[cluster] = "At Risk"
-            else:
-                segment_map[cluster] = "Regular"
+        for i, cluster in enumerate(sorted_clusters):
+            segment_map[cluster] = labels[i] if i < len(labels) else 'Regular'
+
         return segment_map
 
     def predict(self, rfm_df):
         if not isinstance(rfm_df, pd.DataFrame):
             raise ValueError("Input must be a pandas DataFrame")
+
         required_cols = ['Recency', 'Tenure', 'Frequency', 'Monetary', 'AvgOrderValue']
         missing_cols = [col for col in required_cols if col not in rfm_df.columns]
         if missing_cols:
-            raise ValueError
+            raise ValueError(f"Missing required columns: {missing_cols}")
+
+        df_features = rfm_df[required_cols].copy()
+        processed_df = self._preprocess(df_features)
+        clusters = self.model.predict(processed_df)
+
+        result = rfm_df.copy()
+        result['Segment'] = clusters
+        result['Segment_Name'] = result['Segment'].map(self._name_segments(result))
+
+        return result
