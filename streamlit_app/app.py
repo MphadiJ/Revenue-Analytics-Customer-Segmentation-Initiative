@@ -8,20 +8,17 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 SRC_PATH = os.path.join(PROJECT_ROOT, "src")
 sys.path.insert(0, SRC_PATH)
 
-# Import WITHOUT src. prefix
 from inference.inference import InferencePipeline
 
-# Load models using repo-relative paths
+# Load models
 pipeline = InferencePipeline(
     preprocessor_path=os.path.join(PROJECT_ROOT, "models", "preprocessor.pkl"),
     model_path=os.path.join(PROJECT_ROOT, "models", "kmeans_best.pkl")
 )
 
-# App UI
 st.title("Retail Customer Segmentation App 🛒")
 st.write("Upload your RFM data or enter manually to see customer segments.")
 
-# Option: Upload CSV
 uploaded_file = st.file_uploader(
     "Upload CSV (must have Recency, Tenure, Frequency, Monetary, AvgOrderValue)",
     type=["csv"]
@@ -32,13 +29,30 @@ if uploaded_file:
         df = pd.read_csv(uploaded_file)
         st.write("Uploaded data preview:")
         st.dataframe(df.head())
-        predictions = pipeline.predict(df)
-        st.write("Predicted Segments:")
-        st.dataframe(predictions)
+
+        # Step by step debug
+        df_features = df[['Recency', 'Tenure', 'Frequency', 'Monetary', 'AvgOrderValue']].copy()
+        processed_df = pipeline._preprocess(df_features)
+        clusters = pipeline.model.predict(processed_df)
+
+        result = df.copy()
+        result['Segment'] = clusters
+
+        st.write("Raw cluster numbers:", result['Segment'].value_counts().to_dict())
+
+        segment_map = pipeline._name_segments(result)
+        st.write("Segment map:", segment_map)
+
+        result['Segment_Name'] = result['Segment'].map(segment_map)
+
+        st.success("Predicted Segments:")
+        st.dataframe(result)
+
     except Exception as e:
         st.error(f"Error: {e}")
+        import traceback
+        st.code(traceback.format_exc())
 
-# Option: Manual input
 st.subheader("Or enter a single customer manually")
 recency = st.number_input("Recency (days since last purchase)", min_value=0)
 tenure = st.number_input("Tenure (days since first purchase)", min_value=0)
@@ -54,5 +68,18 @@ if st.button("Predict Segment for this customer"):
         "Monetary": monetary,
         "AvgOrderValue": avg_order_value
     }])
-    pred = pipeline.predict(manual_df)
-    st.write(pred)
+    try:
+        df_features = manual_df[['Recency', 'Tenure', 'Frequency', 'Monetary', 'AvgOrderValue']].copy()
+        processed_df = pipeline._preprocess(df_features)
+        clusters = pipeline.model.predict(processed_df)
+        manual_df['Segment'] = clusters
+
+        segment_map = pipeline._name_segments(manual_df)
+        manual_df['Segment_Name'] = manual_df['Segment'].map(segment_map)
+
+        st.success("Prediction:")
+        st.dataframe(manual_df)
+    except Exception as e:
+        st.error(f"Error: {e}")
+        import traceback
+        st.code(traceback.format_exc())
