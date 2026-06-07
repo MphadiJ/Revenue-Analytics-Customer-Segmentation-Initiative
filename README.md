@@ -1,101 +1,166 @@
-# 🛒 Revenue Analytics & Customer Segmentation Initiative
 
-[![Live App](https://img.shields.io/badge/Live%20App-Streamlit-ff4b4b?logo=streamlit)](https://revenueanalytics-customer-segmentation-initiative.streamlit.app)
-[![Python](https://img.shields.io/badge/Python-3.10+-blue?logo=python)](https://www.python.org/)
-[![Scikit-Learn](https://img.shields.io/badge/Scikit--Learn-K--Means-orange?logo=scikit-learn)](https://scikit-learn.org/)
+# Revenue Analytics & Customer Segmentation Initiative 🛒
 
-> **🔗 Try the live app:** [revenueanalytics-customer-segmentation-initiative.streamlit.app](https://revenueanalytics-customer-segmentation-initiative.streamlit.app)
+[![Live App](https://img.shields.io/badge/Streamlit-Live%20App-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://revenueanalytics-customer-segmentation-initiative.streamlit.app/)
+[![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
+[![scikit-learn](https://img.shields.io/badge/scikit--learn-K--Means-F7931E?style=for-the-badge&logo=scikit-learn&logoColor=white)](https://scikit-learn.org)
+[![Streamlit](https://img.shields.io/badge/Deployed-Streamlit%20Cloud-FF4B4B?style=for-the-badge&logo=streamlit)](https://streamlit.io/cloud)
 
----
-
-## 1. What Problem Does This Solve?
-
-Businesses often struggle to understand diverse customer behaviours, leading to generic marketing campaigns and missed revenue opportunities. One-size-fits-all strategies result in wasted marketing spend and poor customer retention.
-
-This project solves the **Customer Understanding** problem. By applying unsupervised machine learning to transactional data, we automatically group customers into meaningful segments — enabling personalised marketing, targeted retention strategies, and data-informed revenue decisions.
+> An end-to-end customer intelligence system — from raw retail transactions to live, interactive segment and churn risk predictions.
 
 ---
 
-## 2. Tech Stack
+## 🔗 Live Demo
 
-| Tool | Purpose |
+**[→ Open the App](https://revenueanalytics-customer-segmentation-initiative.streamlit.app/)**
+
+---
+
+## 📌 Problem Statement
+
+Businesses running generic marketing campaigns lose revenue by treating all customers the same. This project answers three questions from raw transaction data:
+
+1. **Who are my customers?** — Segment them by behaviour
+2. **Which customers are about to leave?** — Score churn risk per customer
+3. **What does a new customer look like?** — Predict segment and churn risk in real time
+
+---
+
+## 🧠 Solution Overview
+
+The pipeline runs in three stages:
+
+```
+Raw Transactions → RFM Feature Engineering → K-Means Segmentation
+                                           → Churn Risk Scoring
+                                           → Streamlit Dashboard
+```
+
+---
+
+## 📊 Dataset
+
+| Property | Detail |
 |---|---|
-| Python | Core language |
-| Scikit-Learn | K-Means clustering & preprocessing |
-| Pandas & NumPy | Data manipulation & RFM engineering |
-| Streamlit | Interactive web app deployment |
-| Joblib | Model serialization |
-| Plotly & Seaborn | Visualizations |
+| Source | Synthetic retail transaction dataset |
+| Shape | 197,316 rows × 13 columns |
+| Key raw fields | `CustomerID`, `InvoiceDate`, `Quantity`, `UnitPrice`, `TotalPrice` |
 
----
-
-## 3. What Data Was Used?
-
-A synthetic dataset simulating real-world retail transactions. Key raw features:
-
-- **CustomerID** — Unique customer identifier
-- **InvoiceNo** — Transaction identifier
-- **InvoiceDate** — Transaction timestamp
-- **Quantity & UnitPrice** — Purchase metrics
-- **Country** — Customer location
-
-**Derived RFM Features (engineered):**
+**Engineered RFM features:**
 
 | Feature | Description |
 |---|---|
-| Recency | Days since last purchase |
-| Frequency | Total number of purchases |
-| Monetary | Total spend amount |
-| Tenure | Days since first purchase |
-| AvgOrderValue | Monetary ÷ Frequency |
+| `Recency` | Days since last purchase |
+| `Frequency` | Total number of purchases |
+| `Monetary` | Total spend (£) |
+| `Tenure` | Days since first purchase |
+| `AvgOrderValue` | Monetary ÷ Frequency |
 
 ---
 
-## 4. Modeling Approach
+## 🧩 Customer Segments
 
-**Algorithm:** K-Means Clustering
-
-**Why K-Means?** It is fast, interpretable, and well-suited for RFM-based segmentation where the goal is to find distinct, actionable customer groups rather than predict a label.
-
-**Cluster Selection:** Optimal number of clusters determined using the **Elbow Method**.
-
-**Evaluation Metrics:**
-- Silhouette Score
-- Calinski-Harabasz Index
-- Davies-Bouldin Index
-
-**Outcome — 4 Business-Aligned Segments:**
+K-Means clustering (optimal K selected via Elbow Method + Silhouette Score) produces four business-labelled segments:
 
 | Segment | Profile |
 |---|---|
-| 🏆 High Value | High spend, high frequency, purchased recently |
-| 🔄 Frequent Buyer | Buys often but lower average spend |
-| ⚠️ At Risk | Haven't purchased recently, may churn |
-| 📦 Regular | Moderate activity across all RFM dimensions |
+| 🟢 High-Value Customers | High spend, high frequency, recent buyers |
+| 🔵 Loyal Customers | Consistent purchasers with long tenure |
+| 🟡 At-Risk Customers | Previously active, now showing declining engagement |
+| ⚪ Occasional Buyers | Low frequency, low spend, infrequent visits |
 
 ---
 
-## 5. Project Structure
+## ⚠️ Churn Risk Analysis
+
+Each customer receives a **Churn Score (0–1)** computed from their RFM profile — no labelled churn data required.
+
+**Scoring formula:**
 
 ```
-├── raw data/              # Source dataset
-├── notebooks/             # EDA, feature engineering, model development
+Churn Score = 0.50 × Recency_norm + 0.30 × (1 - Frequency_norm) + 0.20 × (1 - Monetary_norm)
+```
+
+| Risk Band | Score Range | Meaning |
+|---|---|---|
+| 🔴 High Risk | ≥ 0.65 | Likely churning — immediate retention action needed |
+| 🟡 Medium Risk | 0.35 – 0.64 | Showing warning signs — monitor closely |
+| 🟢 Low Risk | < 0.35 | Engaged and active |
+
+---
+
+## 💻 App Features
+
+The Streamlit app has three tabs:
+
+### 📊 Tab 1 — Segmentation
+- Upload a CSV with RFM features
+- Get instant K-Means segment predictions
+- Download segmented results
+
+### ⚠️ Tab 2 — Churn Analysis
+- Runs automatically on segmented data from Tab 1 (or upload separately)
+- KPI cards: total customers, High / Medium / Low risk counts
+- Churn score distribution histogram
+- Average churn score per segment (bar chart)
+- Risk breakdown per segment (stacked bar)
+- Recency vs Monetary scatter coloured by churn risk
+- Full customer table with download
+
+### 👤 Tab 3 — Single Customer
+- Manual input for any customer's RFM values
+- Predicts segment and churn risk simultaneously
+- Score breakdown table showing what is driving the risk
+- Visual gauge bar for churn score
+
+---
+
+## 🗂️ Project Structure
+
+```
+├── raw data/
+│   └── rt_data.csv                  # Raw retail transaction data
 ├── src/
-│   ├── features/          # RFM feature engineering pipeline
-│   ├── Transformer/       # Custom preprocessing (outliers, skew, scaling)
-│   └── inference/         # Prediction & segment naming pipeline
+│   ├── features/
+│   │   └── build_features.py        # RFM feature engineering
+│   ├── Transformer/
+│   │   └── Preprocessing.py         # Scaling and preprocessing
+│   ├── trainer/
+│   │   └── train_pipeline.py        # KMeansTrainer class
+│   ├── inference/
+│   │   └── inference.py             # InferencePipeline class
+│   └── churn/
+│       ├── __init__.py
+│       └── churn_analysis.py        # Churn scoring module
 ├── models/
-│   ├── preprocessor.pkl   # Fitted preprocessor
-│   └── kmeans_best.pkl    # Trained K-Means model
-├── streamlit_app/         # Web application
-├── predictions/           # Output predictions
-├── reports/               # Analysis reports
+│   ├── kmeans_best.pkl              # Trained K-Means model
+│   └── preprocessor.pkl             # Fitted scaler/preprocessor
+├── notebooks/                       # Exploratory analysis
+├── streamlit_app/
+│   └── app.py                       # Streamlit dashboard
+├── reports/
+├── predictions/
 └── requirements.txt
 ```
 
 ---
 
-## 6. How to Run Locally
+## ⚙️ Tech Stack
+
+| Layer | Tools |
+|---|---|
+| Language | Python 3.12 |
+| Data | Pandas, NumPy |
+| ML | scikit-learn (KMeans, Silhouette Score) |
+| Visualisation | Plotly, Seaborn, Matplotlib |
+| App | Streamlit |
+| Serialisation | Joblib |
+| Version Control | Git & GitHub |
+| Deployment | Streamlit Community Cloud |
+
+---
+
+## 🚀 Run Locally
 
 ```bash
 # Clone the repo
@@ -111,25 +176,10 @@ streamlit run streamlit_app/app.py
 
 ---
 
-## 7. App Features
+## 👤 Author
 
-- **CSV Upload** — Upload a file with RFM columns for bulk segmentation
-- **Manual Input** — Enter a single customer's details and get an instant segment prediction
-- **Segment Output** — Returns both the cluster number and a human-readable segment name
+**Selowa Mphadi John**
+Data Science Practitioner | BSc Mathematical Sciences (Statistics & Operations Research)
 
-**Required CSV columns:**
-```
-Recency, Tenure, Frequency, Monetary, AvgOrderValue
-```
-
----
-
-## 8. Why Should You Care?
-
-This project demonstrates end-to-end unsupervised ML product thinking:
-
-- **Feature Engineering** — RFM metrics derived from raw transactional data, a standard industry framework used by retailers and banks
-- **Custom Preprocessing Pipeline** — Handles outlier capping, skewness transformation, and standard scaling in a reusable, modular class
-- **Business-Aligned Output** — Cluster numbers are automatically mapped to interpretable labels (High Value, At Risk, etc.) making results actionable without data science expertise
-- **Modular Architecture** — Separate modules for ingestion, feature engineering, preprocessing, and inference — following professional software engineering patterns
-- **Live Deployment** — End-to-end from raw data to a publicly accessible web app
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-selowamj-0A66C2?style=flat&logo=linkedin)](https://linkedin.com/in/selowamj)
+[![GitHub](https://img.shields.io/badge/GitHub-MphadiJ-181717?style=flat&logo=github)](https://github.com/MphadiJ)
