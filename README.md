@@ -14,6 +14,8 @@
 
 **[→ Open the App](https://revenueanalytics-customer-segmentation-initiative.streamlit.app/)**
 
+##Download the churn data from segmentation app and upload here (https://revenue-analytics-customer-segmentation-initiative-wvh7mhrjgci.streamlit.app) for kpi dashboard.
+
 ---
 
 ## 📌 Problem Statement
