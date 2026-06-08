@@ -29,7 +29,7 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 SRC_PATH     = os.path.join(PROJECT_ROOT, "src")
 sys.path.insert(0, SRC_PATH)
 
-from kpi_engine import (
+from dashboard.kpi_engine import (
     compute_all_kpis,
     revenue_kpis,
     customer_kpis,
