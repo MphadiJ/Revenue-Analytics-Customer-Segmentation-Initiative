@@ -11,7 +11,7 @@ def load_raw_data(filepath: str | Path) -> pd.DataFrame:
     Removes cancellations, null customers, and recomputes TotalPrice.
     """
     df = pd.read_csv(filepath)
-    df["InvoiceDate"] = pd.to_datetime(df["InvoiceDate"], infer_datetime_format=True)
+    df["InvoiceDate"] = pd.to_datetime(df["InvoiceDate"])
     df = df.dropna(subset=["CustomerID", "InvoiceDate"])
     df = df[(df["Quantity"] > 0) & (df["UnitPrice"] > 0)].copy()
     df["TotalPrice"]  = df["Quantity"] * df["UnitPrice"]
