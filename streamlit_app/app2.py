@@ -2,18 +2,23 @@ import streamlit as st
 import os
 import sys
 
-# -------------------------------------------------------
-# PATHS
-# -------------------------------------------------------
-PROJECT_ROOT = os.path.abspath(os.path.dirname(__file__))
+# PATHS & ENVIRONMENT ALIGNMENT
+import os
+import sys
+
+# Get the absolute path of the directory containing app2.py (streamlit_app/)
+CURRENT_DIR = os.path.abspath(os.path.dirname(__file__))
+
+# Move up one level to reach the true project root path
+PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, ".."))
 SRC_PATH = os.path.join(PROJECT_ROOT, "src")
 
-if SRC_PATH not in sys.path:
-    sys.path.insert(0, SRC_PATH)
+# Insert both paths into sys.path so Python can see all modules
+for path in [PROJECT_ROOT, SRC_PATH]:
+    if path not in sys.path:
+        sys.path.insert(0, path)
 
-# -------------------------------------------------------
 # IMPORT PIPELINE
-# -------------------------------------------------------
 
 from inference.inference import InferencePipeline
 
