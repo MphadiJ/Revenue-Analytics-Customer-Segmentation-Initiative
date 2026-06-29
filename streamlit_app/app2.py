@@ -1,6 +1,7 @@
 import os
 import sys
 import streamlit as st
+import pandas as pd
 
 # Get the absolute path of the directory containing this app file
 CURRENT_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -21,6 +22,10 @@ from tabs.churn import churn_tab
 from tabs.single_customer import single_customer_tab
 from tabs.dashboard import dashboard_tab
 from tabs.executive_summary import executive_summary_tab
+
+# Import pipeline helpers at the root level for cleaner upload processing if tabs need them
+from kpi_engine import load_raw_data, compute_rfm
+from churn.churn_analysis import add_churn_analysis
 
 # --- SESSION STATE INITIALIZATION (Must be done first to avoid KeyErrors) ---
 DEFAULT_STATE = {
@@ -55,9 +60,9 @@ pipeline = load_pipeline()
 # CACHE DATA INGESTION PIPELINE
 @st.cache_data
 def auto_load_data():
-    from kpi_engine import load_raw_data, compute_rfm
-    from churn.churn_analysis import add_churn_analysis
-
+    """
+    Loads default dataset using the robust data cleaning pipelines.
+    """
     data_path = os.path.join(PROJECT_ROOT, "raw data", "rt_data.csv")
     df_raw = load_raw_data(data_path)
     rfm = compute_rfm(df_raw)
@@ -85,6 +90,34 @@ with st.sidebar:
     st.caption("Revenue Analytics Platform")
     st.divider()
     
+    # FILE UPLOADER ADDED AT MAIN LAYOUT LEVEL TO FORCE CLEAN TRANSITIONS
+    st.subheader("📥 Upload Custom Data")
+    uploaded_file = st.file_uploader("Ingest custom transaction CSV", type=["csv"], help="Will automatically re-run full feature engineering.")
+    
+    if uploaded_file is not None:
+        try:
+            with st.spinner("Processing custom dataset engineering..."):
+                # Crucial Fix: Pass uploaded file stream directly through your custom cleaning pipeline
+                custom_raw = load_raw_data(uploaded_file)
+                custom_rfm = compute_rfm(custom_raw)
+                
+                # Re-run ML Inference Pipeline
+                features = custom_rfm[["Recency", "Tenure", "Frequency", "Monetary", "AvgOrderValue"]].copy()
+                processed = pipeline._preprocess(features)
+                custom_rfm["Segment"] = pipeline.model.predict(processed)
+                seg_map = pipeline._name_segments(custom_rfm)
+                custom_rfm["Segment_Name"] = custom_rfm["Segment"].map(seg_map)
+                custom_rfm = add_churn_analysis(custom_rfm)
+                
+                # Push back into core state layers
+                st.session_state["raw_df"] = custom_raw
+                st.session_state["segmented_df"] = custom_rfm
+                st.session_state["analysis_df"] = custom_rfm
+                st.success("Custom data applied successfully!")
+        except Exception as e:
+            st.error(f"Error parsing custom dataset: {str(e)}")
+
+    st.divider()
     st.success("Workflow State")
     data_loaded = st.session_state["analysis_df"] is not None
     seg_done = data_loaded and "Segment_Name" in st.session_state["analysis_df"].columns
@@ -160,7 +193,8 @@ with tab3:
     single_customer_tab(pipeline)
 
 with tab4:
-    dashboard_tab()
+    # CRITICAL FIX: Pass the raw transaction data down to the metrics engine context explicitly
+    dashboard_tab(st.session_state["raw_df"])
 
 with tab5:
     executive_summary_tab()
