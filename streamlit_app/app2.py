@@ -2,10 +2,6 @@ import streamlit as st
 import os
 import sys
 
-# PATHS & ENVIRONMENT ALIGNMENT
-import os
-import sys
-
 # Get the absolute path of the directory containing app2.py (streamlit_app/)
 CURRENT_DIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -62,6 +58,31 @@ def load_pipeline():
 
 pipeline = load_pipeline()
 
+@st.cache_data
+def auto_load_data():
+    from kpi_engine import load_raw_data, compute_rfm
+    from churn.churn_analysis import add_churn_analysis
+
+    data_path = os.path.join(PROJECT_ROOT, "raw data", "rt_data.csv")
+    df_raw    = load_raw_data(data_path)
+    rfm       = compute_rfm(df_raw)
+
+    features  = rfm[["Recency","Tenure","Frequency","Monetary","AvgOrderValue"]].copy()
+    processed = pipeline._preprocess(features)
+    clusters  = pipeline.model.predict(processed)
+    rfm["Segment"]      = clusters
+    seg_map             = pipeline._name_segments(rfm)
+    rfm["Segment_Name"] = rfm["Segment"].map(seg_map)
+    rfm = add_churn_analysis(rfm)
+    return df_raw, rfm
+
+if st.session_state["analysis_df"] is None:
+    with st.spinner("Loading data..."):
+        df_raw, df_seg = auto_load_data()
+        st.session_state["raw_df"]      = df_raw
+        st.session_state["segmented_df"] = df_seg
+        st.session_state["analysis_df"] = df_seg
+
 # SESSION STATE
 
 DEFAULT_STATE = {
@@ -95,16 +116,14 @@ with st.sidebar:
 
     st.success("Workflow")
 
-    st.markdown("""
-1. Upload Data
+data_loaded = st.session_state["analysis_df"] is not None
+seg_done    = data_loaded and "Segment_Name" in st.session_state["analysis_df"].columns
+churn_done  = data_loaded and "ChurnRisk"    in st.session_state["analysis_df"].columns
 
-2. Segment Customers
-
-3. Predict Churn
-
-4. Review KPIs
-
-5. Executive Summary
+st.markdown(f"""
+{'✅' if data_loaded else '⬜'} Data Loaded  
+{'✅' if seg_done    else '⬜'} Segmentation  
+{'✅' if churn_done  else '⬜'} Churn Analysis  
 """)
 
     st.divider()
@@ -165,6 +184,12 @@ if st.session_state["analysis_df"] is not None:
             high
         )
 
+    
+    if "ChurnScore" in df.columns:
+       avg_churn = df["ChurnScore"].mean()
+       c5, c6 = st.columns(2) if you have space, else reuse existing
+    # "Avg Churn Score" and "Revenue at Risk" (Monetary sum of High Risk customers)
+
     if "Monetary" in df.columns:
 
         c4.metric(
@@ -180,15 +205,15 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs(
 
     [
 
-        "📊 Customer Segmentation",
+        "🎯 Segmentation",
 
-        "⚠️ Churn Analysis",
+        "⚠️ Churn",
 
         "👤 Single Customer",
 
-        "📈 KPI Dashboard",
+        "📈 KPIs",
 
-        "🧠 Executive Summary"
+        "🧠 Summary"
 
     ]
 
