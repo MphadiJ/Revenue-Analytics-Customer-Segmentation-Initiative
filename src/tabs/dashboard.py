@@ -25,7 +25,11 @@ RISK_COLORS = {
 PREMIUM_SEGMENTS = ["High-Value Customers", "Loyal Customers"]
 
 
-def dashboard_tab():
+def dashboard_tab(raw_df=None):
+    """
+    FIXED: Added raw_df parameter mapping to match your app2.py call profile 
+    and prevent a TypeError.
+    """
     st.subheader("📈 Executive Command Center")
 
     # ── Guard ─────────────────────────────────────────────────────────────────
@@ -33,39 +37,44 @@ def dashboard_tab():
         st.warning("Complete Customer Segmentation first to unlock this dashboard.")
         return
 
-    df     = st.session_state["analysis_df"]
-    raw_df = st.session_state.get("raw_df")          # transaction-level data
+    df = st.session_state["analysis_df"]
+    
+    # Fallback assignment to ensure dashboard visuals render correctly
+    if raw_df is None:
+        raw_df = st.session_state.get("raw_df")
 
     # ── Aggregate metrics ─────────────────────────────────────────────────────
-    total_revenue        = df["Monetary"].sum()
-    total_customers      = len(df)
-    high_risk_df         = df[df["ChurnRisk"] == "High Risk"] if "ChurnRisk" in df.columns else df.iloc[0:0]
-    revenue_at_risk      = high_risk_df["Monetary"].sum()
-    revenue_at_risk_pct  = (revenue_at_risk / total_revenue * 100) if total_revenue > 0 else 0
+    total_revenue = df["Monetary"].sum() if "Monetary" in df.columns else 0
+    total_customers = len(df)
+    
+    high_risk_df = df[df["ChurnRisk"] == "High Risk"] if "ChurnRisk" in df.columns else df.iloc[0:0]
+    revenue_at_risk = high_risk_df["Monetary"].sum() if "Monetary" in high_risk_df.columns else 0
+    revenue_at_risk_pct = (revenue_at_risk / total_revenue * 100) if total_revenue > 0 else 0
 
     # Premium segment revenue — using ACTUAL model segment names
-    premium_df          = df[df["Segment_Name"].isin(PREMIUM_SEGMENTS)] if "Segment_Name" in df.columns else df.iloc[0:0]
-    premium_revenue_pct = (premium_df["Monetary"].sum() / total_revenue * 100) if total_revenue > 0 else 0
+    premium_df = df[df["Segment_Name"].isin(PREMIUM_SEGMENTS)] if "Segment_Name" in df.columns else df.iloc[0:0]
+    premium_revenue_pct = (premium_df["Monetary"].sum() / total_revenue * 100) if total_revenue > 0 and "Monetary" in premium_df.columns else 0
 
-    # Revenue leaderboard — defined BEFORE columns so it's available everywhere
-    rev_leaderboard = (
-        df.groupby("Segment_Name")["Monetary"]
-        .sum()
-        .reset_index()
-        .sort_values("Monetary", ascending=True)
-    )
-    highest_seg   = rev_leaderboard.iloc[-1]["Segment_Name"] if not rev_leaderboard.empty else "N/A"
-    highest_val   = rev_leaderboard.iloc[-1]["Monetary"]     if not rev_leaderboard.empty else 0
+    # Revenue leaderboard
+    if "Segment_Name" in df.columns and "Monetary" in df.columns:
+        rev_leaderboard = (
+            df.groupby("Segment_Name", observed=True)["Monetary"]
+            .sum()
+            .reset_index()
+            .sort_values("Monetary", ascending=True)
+        )
+    else:
+        rev_leaderboard = pd.DataFrame(columns=["Segment_Name", "Monetary"])
+
+    highest_seg = rev_leaderboard.iloc[-1]["Segment_Name"] if not rev_leaderboard.empty else "N/A"
+    highest_val = rev_leaderboard.iloc[-1]["Monetary"] if not rev_leaderboard.empty else 0
 
     # ── KPI cards ─────────────────────────────────────────────────────────────
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Gross Revenue",          f"£{total_revenue:,.0f}")
-    c2.metric("Active Customers",       f"{total_customers:,}")
-    c3.metric("Revenue at Risk",        f"£{revenue_at_risk:,.0f}",
-              f"{revenue_at_risk_pct:.1f}% of base",
-              delta_color="inverse")
-    c4.metric("Premium Segment Share",  f"{premium_revenue_pct:.1f}%",
-              "High-Value + Loyal")
+    c1.metric("Gross Revenue", f"£{total_revenue:,.0f}")
+    c2.metric("Active Customers", f"{total_customers:,}")
+    c3.metric("Revenue at Risk", f"£{revenue_at_risk:,.0f}", f"{revenue_at_risk_pct:.1f}% of base", delta_color="inverse")
+    c4.metric("Premium Segment Share", f"{premium_revenue_pct:.1f}%", "High-Value + Loyal")
 
     st.divider()
 
@@ -74,7 +83,7 @@ def dashboard_tab():
 
     with col_a:
         st.markdown("#### 📅 Monthly Revenue Trend")
-        if raw_df is not None:
+        if raw_df is not None and not raw_df.empty:
             monthly = monthly_revenue_trend(raw_df)
             fig_trend = go.Figure()
             fig_trend.add_trace(go.Scatter(
@@ -100,8 +109,8 @@ def dashboard_tab():
 
     with col_b:
         st.markdown("#### 🛡️ Revenue by Risk Tier")
-        if "ChurnRisk" in df.columns:
-            risk_revenue = df.groupby("ChurnRisk")["Monetary"].sum().reset_index()
+        if "ChurnRisk" in df.columns and "Monetary" in df.columns:
+            risk_revenue = df.groupby("ChurnRisk", observed=True)["Monetary"].sum().reset_index()
             fig_donut = px.pie(
                 risk_revenue,
                 values="Monetary", names="ChurnRisk",
@@ -127,32 +136,35 @@ def dashboard_tab():
 
     with col_c:
         st.markdown("#### 💰 Revenue by Customer Segment")
-        fig_seg = px.bar(
-            rev_leaderboard,
-            y="Segment_Name", x="Monetary",
-            orientation="h",
-            text="Monetary",
-            color="Monetary",
-            color_continuous_scale="Blues",
-            labels={"Monetary": "Total Value (£)", "Segment_Name": "Segment"},
-        )
-        fig_seg.update_traces(texttemplate="£%{text:,.0f}", textposition="outside")
-        fig_seg.update_layout(
-            height=300,
-            margin=dict(l=10, r=60, t=10, b=10),
-            showlegend=False,
-            coloraxis_showscale=False,
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor ="rgba(0,0,0,0)",
-            xaxis=dict(showgrid=False),
-            yaxis=dict(showgrid=False),
-            font=dict(color="#E6EDF3"),
-        )
-        st.plotly_chart(fig_seg, use_container_width=True)
+        if not rev_leaderboard.empty:
+            fig_seg = px.bar(
+                rev_leaderboard,
+                y="Segment_Name", x="Monetary",
+                orientation="h",
+                text="Monetary",
+                color="Monetary",
+                color_continuous_scale="Blues",
+                labels={"Monetary": "Total Value (£)", "Segment_Name": "Segment"},
+            )
+            fig_seg.update_traces(texttemplate="£%{text:,.0f}", textposition="outside")
+            fig_seg.update_layout(
+                height=300,
+                margin=dict(l=10, r=60, t=10, b=10),
+                showlegend=False,
+                coloraxis_showscale=False,
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor ="rgba(0,0,0,0)",
+                xaxis=dict(showgrid=False),
+                yaxis=dict(showgrid=False),
+                font=dict(color="#E6EDF3"),
+            )
+            st.plotly_chart(fig_seg, use_container_width=True)
+        else:
+            st.info("No segmentation metadata available.")
 
     with col_d:
         st.markdown("#### 🛍️ Top 5 Products by Revenue")
-        if raw_df is not None:
+        if raw_df is not None and not raw_df.empty:
             top5 = top_products_by_revenue(raw_df, 5)
             fig_prod = px.bar(
                 top5.sort_values("Revenue"),
@@ -180,7 +192,7 @@ def dashboard_tab():
     st.divider()
 
     # ── Row 3: Geography + Day of week ────────────────────────────────────────
-    if raw_df is not None:
+    if raw_df is not None and not raw_df.empty:
         col_e, col_f = st.columns(2)
 
         with col_e:
@@ -229,7 +241,6 @@ def dashboard_tab():
 
     # ── Dynamic C-Suite action matrix ─────────────────────────────────────────
     st.markdown("#### 🏁 Strategic Action Matrix")
-
     g1, g2 = st.columns(2)
 
     with g1:
@@ -264,7 +275,8 @@ def dashboard_tab():
                 f"is flagged at risk. Churn metrics are within healthy thresholds. "
                 f"Maintain current retention strategy."
             )
-        if len(high_risk_df) > 0:
+            
+        if len(high_risk_df) > 0 and "Recency" in high_risk_df.columns:
             avg_high_recency = high_risk_df["Recency"].mean()
             st.info(
                 f"📋 **At-Risk Profile:** High Risk customers have an average recency "
