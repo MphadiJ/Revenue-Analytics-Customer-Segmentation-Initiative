@@ -21,17 +21,20 @@ def load_raw_data(filepath: str | Path) -> pd.DataFrame:
     df["Year"]        = df["InvoiceDate"].dt.year
     df["Month"]       = df["InvoiceDate"].dt.month
     df["DayOfWeek"]   = df["InvoiceDate"].dt.day_name()
-    df["Date"]        = df["InvoiceDate"].dt.date
+    df["Date"]        = df["InvoiceDate"].dt.date  # Native datetime.date objects
     df["CustomerID"]  = df["CustomerID"].astype(int).astype(str)
     return df
 
 
-def apply_filters(df, start_date=None, end_date=None, countries=None):
+def apply_filters(df: pd.DataFrame, start_date=None, end_date=None, countries=None) -> pd.DataFrame:
+    """
+    Optimized to utilize pre-calculated 'Date' column to prevent repeated datetime conversion overhead.
+    """
     mask = pd.Series(True, index=df.index)
     if start_date:
-        mask &= df["InvoiceDate"].dt.date >= start_date
+        mask &= df["Date"] >= start_date
     if end_date:
-        mask &= df["InvoiceDate"].dt.date <= end_date
+        mask &= df["Date"] <= end_date
     if countries:
         mask &= df["Country"].isin(countries)
     return df[mask].copy()
@@ -47,7 +50,7 @@ def compute_rfm(df: pd.DataFrame) -> pd.DataFrame:
     reference_date = df["InvoiceDate"].max() + pd.Timedelta(days=1)
 
     rfm = (
-        df.groupby("CustomerID")
+        df.groupby("CustomerID", observed=True)
         .agg(
             Recency    =("InvoiceDate", lambda x: (reference_date - x.max()).days),
             Frequency  =("InvoiceNo",   "nunique"),
@@ -95,9 +98,9 @@ def compute_top_kpis(df: pd.DataFrame, df_prev: pd.DataFrame | None = None) -> d
 
 # --- REVENUE ANALYTICS ---
 
-def monthly_revenue_trend(df):
+def monthly_revenue_trend(df: pd.DataFrame) -> pd.DataFrame:
     monthly = (
-        df.groupby("YearMonth")
+        df.groupby("YearMonth", observed=True)
         .agg(Revenue=("TotalPrice","sum"), Orders=("InvoiceNo","nunique"))
         .reset_index()
     )
@@ -106,9 +109,9 @@ def monthly_revenue_trend(df):
     return monthly
 
 
-def revenue_by_country(df, top_n=10):
+def revenue_by_country(df: pd.DataFrame, top_n=10) -> pd.DataFrame:
     return (
-        df.groupby("Country")
+        df.groupby("Country", observed=True)
         .agg(Revenue=("TotalPrice","sum"), Orders=("InvoiceNo","nunique"))
         .reset_index()
         .sort_values("Revenue", ascending=False)
@@ -116,13 +119,12 @@ def revenue_by_country(df, top_n=10):
     )
 
 
-def revenue_heatmap(df):
+def revenue_heatmap(df: pd.DataFrame) -> pd.DataFrame:
     """
-    FIXED: Uses logical reindexing to correctly map month names 
-    regardless of how many months exist in the filtered dataframe view.
+    Uses logical reindexing and explicit observed checks to guarantee time-series safety.
     """
     pivot = (
-        df.groupby(["Year","Month"])["TotalPrice"]
+        df.groupby(["Year","Month"], observed=True)["TotalPrice"]
         .sum().unstack(fill_value=0)
     )
     
@@ -130,16 +132,15 @@ def revenue_heatmap(df):
     month_map = {1:"Jan", 2:"Feb", 3:"Mar", 4:"Apr", 5:"May", 6:"Jun", 
                  7:"Jul", 8:"Aug", 9:"Sep", 10:"Oct", 11:"Nov", 12:"Dec"}
     
-    # Ensure all columns 1-12 match up to names stably, ignoring missing values
     pivot = pivot.reindex(columns=range(1, 13), fill_value=0)
     pivot.columns = [month_map[m] for m in pivot.columns]
     return pivot.reset_index()
 
 
-def orders_by_day_of_week(df):
+def orders_by_day_of_week(df: pd.DataFrame) -> pd.DataFrame:
     day_order = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
     return (
-        df.groupby("DayOfWeek")
+        df.groupby("DayOfWeek", observed=True)
         .agg(Orders=("InvoiceNo","nunique"), Revenue=("TotalPrice","sum"))
         .reset_index()
         .set_index("DayOfWeek")
@@ -150,17 +151,17 @@ def orders_by_day_of_week(df):
 
 # --- PRODUCT ANALYTICS ---
 
-def top_products_by_revenue(df, top_n=10):
+def top_products_by_revenue(df: pd.DataFrame, top_n=10) -> pd.DataFrame:
     return (
-        df.groupby("Description")
+        df.groupby("Description", observed=True)
         .agg(Revenue=("TotalPrice","sum"), UnitsSold=("Quantity","sum"))
         .reset_index().sort_values("Revenue", ascending=False).head(top_n)
     )
 
 
-def top_products_by_volume(df, top_n=10):
+def top_products_by_volume(df: pd.DataFrame, top_n=10) -> pd.DataFrame:
     return (
-        df.groupby("Description")
+        df.groupby("Description", observed=True)
         .agg(UnitsSold=("Quantity","sum"), Revenue=("TotalPrice","sum"))
         .reset_index().sort_values("UnitsSold", ascending=False).head(top_n)
     )
@@ -168,38 +169,39 @@ def top_products_by_volume(df, top_n=10):
 
 # --- CUSTOMER ANALYTICS ---
 
-def top_customers_by_revenue(df, top_n=10):
+def top_customers_by_revenue(df: pd.DataFrame, top_n=10) -> pd.DataFrame:
     return (
-        df.groupby("CustomerID")
+        df.groupby("CustomerID", observed=True)
         .agg(Revenue=("TotalPrice","sum"), Orders=("InvoiceNo","nunique"))
         .reset_index().sort_values("Revenue", ascending=False).head(top_n)
     )
 
 
-def customer_order_frequency_distribution(df):
-    freq = df.groupby("CustomerID")["InvoiceNo"].nunique().reset_index()
+def customer_order_frequency_distribution(df: pd.DataFrame) -> pd.DataFrame:
+    freq = df.groupby("CustomerID", observed=True)["InvoiceNo"].nunique().reset_index()
     freq.columns = ["CustomerID","OrderCount"]
     freq["Bucket"] = pd.cut(
         freq["OrderCount"],
         bins=[0,1,2,5,10,20,50,99999],
         labels=["1","2","3–5","6–10","11–20","21–50","50+"],
     )
-    return freq.groupby("Bucket", observed=True)["CustomerID"].count().reset_index(name="CustomerCount")
+    res = freq.groupby("Bucket", observed=True)["CustomerID"].count().reset_index(name="CustomerCount")
+    res["CustomerCount"] = res["CustomerCount"].astype(int)
+    return res
 
 
-def revenue_by_new_vs_returning(df):
+def revenue_by_new_vs_returning(df: pd.DataFrame) -> pd.DataFrame:
     """
-    FIXED: Uses the exact first InvoiceNo identifier per customer group 
+    Uses the exact first InvoiceNo identifier per customer group 
     to robustly segment Cohort classes instead of checking identical timestamps.
     """
-    # Track the actual first transaction event for each cohort
     first_orders = df.groupby("CustomerID")["InvoiceNo"].transform("min")
     
     df_cohort = df.copy()
     df_cohort["CustomerType"] = np.where(df_cohort["InvoiceNo"] == first_orders, "New", "Returning")
     
     return (
-        df_cohort.groupby("CustomerType")
+        df_cohort.groupby("CustomerType", observed=True)
         .agg(Revenue=("TotalPrice","sum"), Customers=("CustomerID","nunique"))
         .reset_index()
     )
