@@ -17,7 +17,7 @@ def load_raw_data(filepath: str | Path) -> pd.DataFrame:
     
     # Feature Engineering
     df["TotalPrice"]  = df["Quantity"] * df["UnitPrice"]
-    df["YearMonth"]   = df["InvoiceDate"].dt.to_period("M")
+    df["YearMonth"] = df["InvoiceDate"].dt.to_period("M").astype(str)
     df["Year"]        = df["InvoiceDate"].dt.year
     df["Month"]       = df["InvoiceDate"].dt.month
     df["DayOfWeek"]   = df["InvoiceDate"].dt.day_name()
@@ -104,7 +104,6 @@ def monthly_revenue_trend(df: pd.DataFrame) -> pd.DataFrame:
         .agg(Revenue=("TotalPrice","sum"), Orders=("InvoiceNo","nunique"))
         .reset_index()
     )
-    monthly["YearMonth"]  = monthly["YearMonth"].astype(str)
     monthly["MoM_Growth"] = monthly["Revenue"].pct_change() * 100
     return monthly
 
