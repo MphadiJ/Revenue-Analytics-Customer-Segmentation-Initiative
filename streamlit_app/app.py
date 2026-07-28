@@ -15,7 +15,6 @@ import plotly.express as px
 import sys
 import os
 
-# ── Path fix ─────────────────────────────────────────────────────────────────
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 SRC_PATH     = os.path.join(PROJECT_ROOT, "src")
 sys.path.insert(0, SRC_PATH)
@@ -29,7 +28,6 @@ from churn.churn_analysis import (
     explain_churn_score,
 )
 
-# ── Load models once ──────────────────────────────────────────────────────────
 @st.cache_resource
 def load_pipeline():
     return InferencePipeline(
@@ -39,7 +37,6 @@ def load_pipeline():
 
 pipeline = load_pipeline()
 
-# ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="Customer Intelligence App",
     page_icon="🛒",
@@ -49,13 +46,11 @@ st.set_page_config(
 st.title("Retail Customer Intelligence App 🛒")
 st.caption("Segmentation · Churn Risk · Single Customer Prediction")
 
-# ── Tabs ──────────────────────────────────────────────────────────────────────
 tab1, tab2, tab3 = st.tabs(["📊 Segmentation", "⚠️ Churn Analysis", "👤 Single Customer"])
 
 
-# ═════════════════════════════════════════════════════════════════════════════
 # TAB 1 — SEGMENTATION  (original logic preserved)
-# ═════════════════════════════════════════════════════════════════════════════
+
 with tab1:
     st.subheader("Customer Segmentation")
     st.write("Upload your RFM data to predict customer segments.")
@@ -95,9 +90,8 @@ with tab1:
             st.code(traceback.format_exc())
 
 
-# ═════════════════════════════════════════════════════════════════════════════
 # TAB 2 — CHURN ANALYSIS  (new)
-# ═════════════════════════════════════════════════════════════════════════════
+
 with tab2:
     st.subheader("Churn Risk Analysis ⚠️")
 
@@ -112,7 +106,6 @@ with tab2:
         "Low Risk":    "🟢",
     }
 
-    # ── Data source ───────────────────────────────────────────────────────────
     has_session_data = "segmented_df" in st.session_state
 
     if has_session_data:
